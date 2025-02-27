@@ -1,0 +1,189 @@
+version: "3"
+
+silent: true
+
+includes:
+  examples:
+    taskfile: ./examples/Taskfile.yml
+    dir: ./examples
+
+  common_js_test:
+    taskfile: ./common_js_test/Taskfile.yml
+    dir: ./common_js_test
+
+  simple_rest_signature_provider:
+    taskfile: ./examples/simple_rest_signature_provider/Taskfile.yml
+    dir: ./examples/simple_rest_signature_provider
+
+  proto:
+    taskfile: ./packages/proto/Taskfile.yml
+    dir: ./packages/proto
+
+  cryptography:
+    taskfile: ./packages/cryptography/Taskfile.yml
+    dir: ./packages/cryptography
+
+tasks:
+  default:
+    deps:
+      - build
+
+  "run:examples":
+    cmds:
+      - task: "examples:run-examples"
+
+  docs:
+    cmds:
+      - npx typedoc
+        --excludeInternal
+        --excludePrivate
+        --excludeProtected
+        --out docs
+        --validation.invalidLink
+        --entryPoints src/index.js src/browser.js src/native.js
+
+  "yalc:install":
+    cmds:
+      - npm install -g yalc > /dev/null
+
+  "yalc:add":
+    cmds:
+      - npx yalc add @hashgraph/proto > /dev/null
+      - npx yalc add @hashgraph/cryptography > /dev/null
+
+  "yalc:remove":
+    cmds:
+      - npx yalc remove @hashgraph/proto > /dev/null
+      - npx yalc remove @hashgraph/cryptography > /dev/null
+
+  install:
+    deps:
+      - "yalc:install"
+      - "proto:build"
+      - "cryptography:build"
+    cmds:
+      - task: "yalc:add"
+      - pnpm i --no-frozen-lockfile > /dev/null
+
+  build:
+    cmds:
+      - task: install
+      - task: update:addressbooks
+      - task: format
+      - task: lint
+      - npx babel src -d lib --out-file-extension .cjs > /dev/null
+      - npx rollup -c > /dev/null
+      - npx yalc publish > /dev/null
+
+  clean:
+    deps:
+      - "examples:clean"
+      - "cryptography:clean"
+      - "proto:clean"
+      - "simple_rest_signature_provider:clean"
+      - "common_js_test:clean"
+    cmds:
+      - rm -rf node_modules .yalc
+
+  format:
+    cmds:
+      - npx prettier src "test/unit/*.js" "test/integration/*.js" "*.json" "src/*.js" "scripts/*.js" --write > /dev/null
+
+  lint:
+    deps:
+      - "lint:types"
+      - "lint:dpdm"
+      - "lint:format"
+      - "lint:js"
+
+  "lint:types":
+    cmds:
+      - npx tsc
+
+  "lint:dpdm":
+    cmds:
+      # It's really annoying seeing [X/X] Analyze done. If a circular dep is found remove `2>&1`
+      - npx dpdm src/index.js --circular true --tree false --warning false
+
+  "lint:format":
+    cmds:
+      - npx prettier src "test/unit/*.js" "test/integration/*.js" "*.json" "src/*.js" --check > /dev/null
+
+  "lint:js":
+    cmds:
+      - npx eslint --fix "src/**/*.js" "test/integration/**/*.js" "test/unit/**/*.js"
+
+  "test:release":
+    cmds:
+      - task: build
+      - task: test:unit
+      - task: examples:build
+      - task: simple_rest_signature_provider:build
+      - task: common_js_test:build
+
+  test:
+    deps:
+      - "test:unit"
+      - "test:integration"
+
+  "test:unit":
+    deps:
+      - "test:unit:node"
+      - "test:unit:browser"
+
+  "test:unit:node":
+    cmds:
+      - npx mocha --inline-diffs --exit -r @babel/register -r chai/register-expect.js "test/unit/*.js" --timeout 120000 {{.CLI_ARGS}}
+
+  "test:unit:codecov":
+    cmds:
+      - npx c8 --reporter=lcov --reporter=text-summary ./node_modules/.bin/mocha --inline-diffs -r @babel/register -r chai/register-expect.js "test/unit/*.js" --timeout 120000 {{.CLI_ARGS}}
+      - npx c8 report
+
+  "test:unit:browser":
+    cmds:
+      - ./scripts/browser_test.sh
+
+  "test:integration":
+    deps:
+      - "test:integration:node"
+
+  "test:integration:node":
+    cmds:
+      - npx mocha --exit --parallel -jobs 4 -r @babel/register -r chai/register-expect.js "test/integration/*.js" --timeout 120000 {{.CLI_ARGS}}
+
+  "test:integration:codecov":
+    cmds:
+      - npx c8 --reporter=lcov --reporter=text-summary ./node_modules/.bin/mocha --exit --parallel -jobs 4 -r @babel/register -r chai/register-expect.js "test/integration/*.js" --timeout 120000 {{.CLI_ARGS}}
+      - npx c8 report
+
+  "update:proto":
+    deps:
+      - "proto:update"
+    cmds:
+      - npx yalc add @hashgraph/proto
+      # Remove proto so on `task build` we fix the link
+      - rm -rf ./node_modules/@hashgraph/proto
+
+  "update:addressbooks":
+    cmds:
+      - node ./scripts/update-address-books.js
+
+  update:
+    cmds:
+      - task: update:addressbooks
+      - task: update:proto
+      - task: build
+
+  publish:
+    deps:
+      - "test:release"
+    cmds:
+      - task: "yalc:remove"
+      - task: "publish:release"
+
+  "publish:release":
+    preconditions:
+      - "! grep '\".*\": \"\\(link\\|file\\):.*\"' package.json > /dev/null"
+    cmds:
+      - pnpm publish {{.CLI_ARGS}}
