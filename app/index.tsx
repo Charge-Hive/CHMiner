@@ -3,26 +3,27 @@ import {
   ScrollView,
   Text,
   View,
-  ImageBackground,
-  TouchableOpacity,
   TextInput,
+  TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient"; // For gradient backgrounds
-import { MaterialIcons } from "@expo/vector-icons"; // For icons
+import { Feather, FontAwesome5 } from "@expo/vector-icons"; // For icons
+import { router } from "expo-router"; // Expo Router
 import supabase from "./supabaseClient"; // Import Supabase client
-import { useRouter } from "expo-router";
 import "../global.css";
 
 const LoginPage = () => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const router = useRouter();
+  const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const handleLogin = async () => {
     try {
+      setLoading(true);
+
       // Check if the email exists in the user table
       const { data: userData, error: fetchError } = await supabase
         .from("user")
@@ -53,98 +54,129 @@ const LoginPage = () => {
       }
 
       // Navigate to the home screen
-      router.replace("home" as any);
+      router.replace("/home");
     } catch (error) {
       console.error("Error during login:", error);
       Alert.alert("Error", "An error occurred during login.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSignupNavigation = () => {
-    router.push("signup" as any);
+    router.push("/signup");
   };
 
   return (
-    <ImageBackground
-      source={require("../assets/onboarding/bg.png")}
-      style={{ flex: 1 }}
-      resizeMode="cover"
-      className="h-full"
-    >
-      <SafeAreaView edges={["bottom", "left", "right"]} className="h-full">
-        <ScrollView contentContainerStyle={{ height: "100%" }}>
-          <View className="relative h-full flex-1 flex-col justify-center px-6 py-4">
-            {/* Login Box */}
-            <View className="bg-white/20 backdrop-blur-md rounded-2xl p-8 border border-white/10 shadow-lg">
-              {/* Logo or Branding */}
-              <View className="items-center mb-8">
-                <Text className="text-5xl font-bold text-yellow-400 font-pbold">
-                  HiveMiner
-                </Text>
-                <Text className="text-xl mt-2 text-gray-300 font-psemibold">
-                  Share Parking & EV Charging Spots
-                </Text>
-              </View>
+    <SafeAreaView className="bg-primary h-full">
+      <ScrollView>
+        <View className="w-full justify-center h-full px-7 my-6">
+          {/* Heading: ChargeHiveMiner */}
+          <View className="mb-10">
+            <Text className="text-4xl font-psemibold text-yellow-400 text-center">
+              ChargeHiveMiner
+            </Text>
+          </View>
 
-              {/* Email Input */}
-              <View className="mb-6">
-                <View className="flex-row items-center bg-white/20 rounded-lg p-3">
-                  <MaterialIcons name="email" size={24} color="#FBBF24" />
-                  <TextInput
-                    placeholder="Email"
-                    placeholderTextColor="#A0AEC0"
-                    value={email}
-                    onChangeText={setEmail}
-                    className="flex-1 ml-3 text-white"
-                  />
-                </View>
-              </View>
+          {/* Subheading */}
+          <Text className="text-gray-400 mt-3 font-psemibold text-lg text-center">
+            Sign in to your account
+          </Text>
 
-              {/* Password Input */}
-              <View className="mb-8">
-                <View className="flex-row items-center bg-white/20 rounded-lg p-3">
-                  <MaterialIcons name="lock" size={24} color="#FBBF24" />
-                  <TextInput
-                    placeholder="Password"
-                    placeholderTextColor="#A0AEC0"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                    className="flex-1 ml-3 text-white"
-                  />
-                </View>
-              </View>
+          <View className="mt-10">
+            {/* Email Input */}
+            <View className="mb-6">
+              <Text className="text-xl text-gray-300 block mb-2 font-psemibold">
+                Email
+              </Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-lg p-4 font-psemibold text-white"
+                placeholder="your@email.com"
+                keyboardType="email-address"
+                placeholderTextColor="#6b7280"
+                autoCapitalize="none"
+              />
+            </View>
 
-              {/* Login Button */}
-              <TouchableOpacity onPress={handleLogin}>
-                <LinearGradient
-                  colors={["#FBBF24", "#F59E0B"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  className="w-full py-4 rounded-lg"
+            {/* Password Input */}
+            <View className="mb-8 relative">
+              <Text className="text-xl text-gray-300 block mb-2 font-psemibold">
+                Password
+              </Text>
+              <View className="relative">
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  className="w-full bg-gray-800 border-2 border-gray-700 font-psemibold rounded-lg p-4 text-gray-100 pr-12"
+                  placeholder="••••••••"
+                  secureTextEntry={!passwordVisible}
+                  placeholderTextColor="#6b7280"
+                />
+                <TouchableOpacity
+                  className="absolute right-4 top-5"
+                  onPress={() => setPasswordVisible(!passwordVisible)}
                 >
-                  <Text className="text-center text-xl text-white font-pbold">
-                    Login
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <Feather
+                    name={passwordVisible ? "eye-off" : "eye"}
+                    size={24}
+                    color="white"
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-              {/* Sign Up Button */}
-              <TouchableOpacity
-                onPress={handleSignupNavigation}
-                className="mt-4"
-              >
-                <Text className="text-center text-gray-300 font-psemibold">
-                  Don't have an account?{" "}
-                  <Text className="text-yellow-400">Sign Up</Text>
+            {/* Login Button */}
+            <TouchableOpacity
+              onPress={handleLogin}
+              disabled={loading}
+              className="w-full bg-yellow-400 text-gray-900 py-4 rounded-lg font-semibold flex-row justify-center"
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#1F2937" />
+              ) : (
+                <Text className="text-center text-xl text-gray-900 font-pbold">
+                  Login
                 </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Sign Up Navigation */}
+            <TouchableOpacity onPress={handleSignupNavigation} className="mt-4">
+              <Text className="text-center text-gray-300 font-psemibold">
+                Don't have an account?{" "}
+                <Text className="text-yellow-400">Sign Up</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Social Login Section */}
+          <View className="mt-8">
+            <View className="flex flex-row items-center gap-4 mb-6">
+              <View className="flex-1 border-t border-gray-500" />
+              <Text className="text-gray-400 font-pregular">
+                or continue with
+              </Text>
+              <View className="flex-1 border-t border-gray-500" />
+            </View>
+
+            <View className="flex-row w-11/12 mx-auto justify-evenly">
+              <TouchableOpacity className="flex-row basis-1/3 items-center justify-center gap-2 bg-gray-800 py-5 rounded-lg">
+                <FontAwesome5 name="google" size={24} color="white" />
+                <Text className="text-white font-psemibold text-lg">
+                  Google
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity className="flex-row basis-1/3 items-center justify-center gap-2 bg-gray-800 py-5 rounded-lg">
+                <FontAwesome5 name="apple" size={27} color="white" />
+                <Text className="text-white font-psemibold text-lg">Apple</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
-        <StatusBar backgroundColor="transparent" translucent />
-      </SafeAreaView>
-    </ImageBackground>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 

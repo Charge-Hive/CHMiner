@@ -3,47 +3,69 @@ import {
   ScrollView,
   Text,
   View,
-  ImageBackground,
-  TouchableOpacity,
   TextInput,
+  TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { FontAwesome, Feather, FontAwesome5 } from "@expo/vector-icons"; // For icons
+import { router } from "expo-router"; // Expo Router
 import supabase from "./supabaseClient"; // Import Supabase client
-import { useRouter } from "expo-router";
 import "../global.css";
 
 const SignupPage = () => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
   const [age, setAge] = useState<string>("");
-  const router = useRouter();
+  const [passwordVisible, setPasswordVisible] = useState<boolean>(false);
+  const [confirmPasswordVisible, setConfirmPasswordVisible] =
+    useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const handleSignup = async () => {
+    if (!email || !password || !confirmPassword || !age) {
+      Alert.alert("Error", "All fields are required.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match.");
+      return;
+    }
+
+    if (!/^\d+$/.test(age) || parseInt(age) <= 0) {
+      Alert.alert("Error", "Please enter a valid age.");
+      return;
+    }
+
+    setLoading(true);
+
     try {
       console.log("Checking if email is already registered...");
-      // Check if the email is already registered
       const { data: existingUser, error: fetchError } = await supabase
         .from("user")
         .select("email_id")
         .eq("email_id", email)
-        .maybeSingle(); // Use maybeSingle instead of single
+        .maybeSingle();
 
       if (fetchError) {
         console.error("Error checking email:", fetchError);
         Alert.alert("Error", "Failed to check email availability.");
+        setLoading(false);
         return;
       }
 
       if (existingUser) {
         console.log("Email is already registered:", email);
-        Alert.alert("Error", "Email is already registered.");
+        Alert.alert("Error", "Email is already registered. Try logging in.");
+        setLoading(false);
         return;
       }
 
-      console.log("Signing up user with Supabase Auth...");
       // Sign up the user with Supabase Auth
+      console.log("Signing up user with Supabase Auth...");
       const { data: authData, error: signupError } = await supabase.auth.signUp(
         {
           email,
@@ -54,16 +76,35 @@ const SignupPage = () => {
       if (signupError) {
         console.error("Error signing up:", signupError);
         Alert.alert("Error", signupError.message);
+        setLoading(false);
         return;
       }
 
-      console.log("User signed up successfully. Saving user details...");
-      // Save user details to the user table
+      console.log("User signed up successfully. Creating wallet...");
+      // Create a new Hedera wallet
+      const response = await fetch(
+        "https://hederaprovider-e5c7e6e44385.herokuapp.com/create-account"
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to create Hedera wallet");
+      }
+
+      // Parse the response
+      const { accountId, privateKey, publicKey, evmAddr } =
+        await response.json();
+
+      console.log("Wallet created. Saving user details...");
+      // Save user details and wallet info to the user table
       const { data, error: insertError } = await supabase.from("user").insert([
         {
           email_id: email,
           pwd: password, // Note: In production, never store plain-text passwords
-          age,
+          age: parseInt(age), // Store age as an integer
+          hedera_account_id: accountId,
+          hedera_private_key: privateKey,
+          hedera_public_key: publicKey,
+          hedera_evm_addr: evmAddr,
         },
       ]);
 
@@ -73,70 +114,180 @@ const SignupPage = () => {
         return;
       }
 
-      console.log(
-        "User details saved successfully. Navigating to home screen..."
-      );
-      // Navigate to the home screen
-      router.replace("home" as any);
+      console.log("User details saved successfully. Redirecting to login...");
+      // Redirect to the login screen
+      router.replace("/"); // Navigate to the root route (login page)
     } catch (error) {
       console.error("Unexpected error during signup:", error);
       Alert.alert("Error", "An error occurred during signup.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <ImageBackground
-      source={require("../assets/onboarding/bg.png")}
-      style={{ flex: 1 }}
-      resizeMode="cover"
-      className="h-full"
-    >
-      <SafeAreaView edges={["bottom", "left", "right"]} className="h-full">
-        <ScrollView contentContainerStyle={{ height: "100%" }}>
-          <View className="relative h-full flex-1 flex-col justify-between px-6 py-4">
-            <View className="pt-16">
-              <Text className="text-5xl font-bold text-yellow-400 font-pbold">
-                HiveMiner
+    <SafeAreaView className="bg-primary h-full">
+      <ScrollView>
+        <View className="w-full justify-center h-full px-7 my-6">
+          {/* Custom Back Button */}
+          <View className="mb-10">
+            <TouchableOpacity onPress={() => router.back()}>
+              <FontAwesome name="arrow-left" size={24} color="#d1d5db" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Heading: ChargeHiveMiner */}
+          <Text className="text-4xl font-psemibold text-yellow-400">
+            ChargeHiveMiner
+          </Text>
+          <Text className="text-gray-400 mt-3 font-psemibold text-lg">
+            Join the ChargeHive community
+          </Text>
+
+          <View className="mt-10">
+            {/* Email Input */}
+            <View className="mb-6">
+              <Text className="text-xl text-gray-300 block mb-2 font-psemibold">
+                Email
               </Text>
-              <Text className="text-xl mt-2 text-gray-300 font-psemibold">
-                Share Parking & EV Charging Spots
-              </Text>
-            </View>
-            <View className="space-y-6 mb-1">
               <TextInput
-                placeholder="Email"
                 value={email}
                 onChangeText={setEmail}
-                className="w-full bg-white p-3 rounded-lg"
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-lg p-4 font-psemibold text-white"
+                placeholder="your@email.com"
+                keyboardType="email-address"
+                placeholderTextColor="#6b7280"
+                autoCapitalize="none"
               />
+            </View>
+
+            {/* Password Input */}
+            <View className="mb-6 relative">
+              <Text className="text-xl text-gray-300 block mb-2 font-psemibold">
+                Password
+              </Text>
+              <View className="relative">
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  className="w-full bg-gray-800 border-2 border-gray-700 font-psemibold rounded-lg p-4 text-gray-100 pr-12"
+                  placeholder="••••••••"
+                  secureTextEntry={!passwordVisible}
+                  placeholderTextColor="#6b7280"
+                />
+                <TouchableOpacity
+                  className="absolute right-4 top-5"
+                  onPress={() => setPasswordVisible(!passwordVisible)}
+                >
+                  <Feather
+                    name={passwordVisible ? "eye-off" : "eye"}
+                    size={24}
+                    color="white"
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Confirm Password Input */}
+            <View className="mb-6 relative">
+              <Text className="text-xl text-gray-300 block mb-2 font-psemibold">
+                Confirm Password
+              </Text>
+              <View className="relative">
+                <TextInput
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  className="w-full bg-gray-800 border-2 border-gray-700 font-psemibold rounded-lg p-4 text-gray-100 pr-12"
+                  placeholder="••••••••"
+                  secureTextEntry={!confirmPasswordVisible}
+                  placeholderTextColor="#6b7280"
+                />
+                <TouchableOpacity
+                  className="absolute right-4 top-5"
+                  onPress={() =>
+                    setConfirmPasswordVisible(!confirmPasswordVisible)
+                  }
+                >
+                  <Feather
+                    name={confirmPasswordVisible ? "eye-off" : "eye"}
+                    size={24}
+                    color="white"
+                  />
+                </TouchableOpacity>
+              </View>
+              {password !== confirmPassword && confirmPassword.length > 0 && (
+                <Text className="text-red-500 mt-2 text-sm font-semibold">
+                  Passwords do not match
+                </Text>
+              )}
+            </View>
+
+            {/* Age Input */}
+            <View className="mb-6">
+              <Text className="text-xl text-gray-300 block mb-2 font-psemibold">
+                Age
+              </Text>
               <TextInput
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                className="w-full bg-white p-3 rounded-lg"
-              />
-              <TextInput
-                placeholder="Age"
                 value={age}
-                onChangeText={setAge}
+                onChangeText={(text) => {
+                  if (/^\d*$/.test(text)) {
+                    setAge(text);
+                  }
+                }}
+                className="w-full bg-gray-800 border-2 border-gray-700 rounded-lg p-4 font-psemibold text-white"
+                placeholder="Enter your age"
                 keyboardType="numeric"
-                className="w-full bg-white p-3 rounded-lg"
+                placeholderTextColor="#6b7280"
               />
-              <TouchableOpacity
-                onPress={handleSignup}
-                className="w-full bg-green-500 text-white py-4 rounded-lg font-semibold"
-              >
-                <Text className="text-center text-xl text-white font-pbold">
+            </View>
+
+            {/* Sign Up Button */}
+            <TouchableOpacity
+              onPress={handleSignup}
+              disabled={loading}
+              className="w-full bg-yellow-400 text-gray-900 py-4 rounded-lg font-semibold flex-row justify-center"
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#1F2937" />
+              ) : (
+                <Text className="text-center text-xl text-gray-900 font-pbold">
                   Sign Up
                 </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Message: "Signing up will create a new wallet" */}
+            <Text className="text-center text-gray-300 font-psemibold mt-4">
+              Signing up will create a new wallet.
+            </Text>
+          </View>
+
+          {/* Social Login Section */}
+          <View className="mt-8">
+            <View className="flex flex-row items-center gap-4 mb-6">
+              <View className="flex-1 border-t border-gray-500" />
+              <Text className="text-gray-400 font-pregular">
+                or continue with
+              </Text>
+              <View className="flex-1 border-t border-gray-500" />
+            </View>
+
+            <View className="flex-row w-11/12 mx-auto justify-evenly">
+              <TouchableOpacity className="flex-row basis-1/3 items-center justify-center gap-2 bg-gray-800 py-5 rounded-lg">
+                <FontAwesome5 name="google" size={24} color="white" />
+                <Text className="text-white font-psemibold text-lg">
+                  Google
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity className="flex-row basis-1/3 items-center justify-center gap-2 bg-gray-800 py-5 rounded-lg">
+                <FontAwesome5 name="apple" size={27} color="white" />
+                <Text className="text-white font-psemibold text-lg">Apple</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
-        <StatusBar backgroundColor="transparent" translucent />
-      </SafeAreaView>
-    </ImageBackground>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 

@@ -11,6 +11,8 @@ type SpotData = {
   parkingspot_image2_url: string;
   parkingspot_image3_url: string;
   comments: string;
+  provider_account_addr: string; // Add provider_account_addr
+  provider_evm_addr: string; // Add provider_evm_addr
 };
 
 export const parkingSpotService = async (spotData: SpotData) => {
@@ -25,6 +27,8 @@ export const parkingSpotService = async (spotData: SpotData) => {
     parkingspot_image2_url,
     parkingspot_image3_url,
     comments,
+    provider_account_addr,
+    provider_evm_addr,
   } = spotData;
 
   const { data, error } = await supabase.from("Parking").insert([
@@ -39,6 +43,8 @@ export const parkingSpotService = async (spotData: SpotData) => {
       parkingspot_image2_url: parkingspot_image2_url || "",
       parkingspot_image3_url: parkingspot_image3_url || "",
       comments,
+      provider_account_addr, // Include provider_account_addr
+      provider_evm_addr, // Include provider_evm_addr
     },
   ]);
 

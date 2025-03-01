@@ -66,72 +66,6 @@ const WalletPage = () => {
     }
   };
 
-  // Create a new Hedera wallet and update Supabase
-  const createHederaWallet = async () => {
-    try {
-      setLoading(true);
-
-      // Call the Hedera provider API to create a new account
-      const response = await fetch(
-        "https://hederaprovider-e5c7e6e44385.herokuapp.com/create-account"
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to create Hedera wallet");
-      }
-
-      // Parse the response
-      const { accountId, privateKey, publicKey, evmAddr } =
-        await response.json();
-
-      // Get the current user's email
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        throw new Error("User not logged in");
-      }
-
-      // Update the user's record in Supabase with the new Hedera account details
-      const { error: updateError } = await supabase
-        .from("user")
-        .update({
-          hedera_account_id: accountId,
-          hedera_private_key: privateKey,
-          hedera_public_key: publicKey,
-          hedera_evm_addr: evmAddr,
-        })
-        .eq("email_id", user.email);
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      // Update the local state with the new Hedera wallet details
-      setHederaAccountId(accountId);
-      setHederaPrivateKey(privateKey);
-      setHederaPublicKey(publicKey);
-      setHederaEvmAddr(evmAddr);
-
-      Toast.show({
-        type: "success",
-        text1: "Success",
-        text2: "Wallet created successfully!",
-      });
-    } catch (error) {
-      console.error("Error creating Hedera wallet:", error);
-      setError("Failed to create wallet.");
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: "Failed to create wallet.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Copy text to clipboard
   const copyToClipboard = async (text: string) => {
     await Clipboard.setStringAsync(text);
@@ -205,15 +139,9 @@ const WalletPage = () => {
           />
         </View>
       ) : (
-        <TouchableOpacity
-          onPress={createHederaWallet}
-          className="mt-8 flex-row items-center justify-center bg-blue-500 py-4 rounded-lg"
-        >
-          <FontAwesome name="plus-square" size={24} color="white" />
-          <Text className="text-white text-xl ml-2 font-pbold">
-            Create Wallet
-          </Text>
-        </TouchableOpacity>
+        <Text className="text-white text-center mt-8">
+          No wallet found. Please sign up to create a wallet.
+        </Text>
       )}
       <Toast />
     </View>

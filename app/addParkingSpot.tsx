@@ -29,7 +29,9 @@ type SpotData = {
   parkingspot_image1_url: string;
   parkingspot_image2_url: string;
   parkingspot_image3_url: string;
-  email_id: string; // Add email_id to the type
+  email_id: string;
+  provider_account_addr: string; // Add provider_account_addr
+  provider_evm_addr: string; // Add provider_evm_addr
 };
 
 export const addParkingSpot = () => {
@@ -168,13 +170,24 @@ export const addParkingSpot = () => {
     setIsLoading(true);
 
     try {
-      // Get the logged-in user's email
+      // Get the logged-in user's email and wallet details
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
         throw new Error("User not logged in");
+      }
+
+      // Fetch the user's wallet details from the user table
+      const { data: userData, error: userError } = await supabase
+        .from("user")
+        .select("hedera_account_id, hedera_evm_addr")
+        .eq("email_id", user.email)
+        .single();
+
+      if (userError || !userData) {
+        throw new Error("Failed to fetch user wallet details");
       }
 
       const uploadedUrls = await uploadPhotos();
@@ -189,7 +202,9 @@ export const addParkingSpot = () => {
         parkingspot_image1_url: uploadedUrls[0],
         parkingspot_image2_url: uploadedUrls[1],
         parkingspot_image3_url: uploadedUrls[2],
-        email_id: user.email!, // Add the user's email_id
+        email_id: user.email!,
+        provider_account_addr: userData.hedera_account_id, // Add provider_account_addr
+        provider_evm_addr: userData.hedera_evm_addr, // Add provider_evm_addr
       };
 
       // Insert the parking spot into the Parking table
