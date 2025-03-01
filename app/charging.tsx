@@ -1,7 +1,169 @@
-import React from "react";
-import { View, Text } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Alert,
+  Image,
+  Modal,
+} from "react-native";
+import { useRouter } from "expo-router";
+import MapView, { Marker } from "react-native-maps";
+import * as Location from "expo-location";
+import supabase from "./supabaseClient";
 
 const ChargingPage = () => {
+  const router = useRouter();
+  const [chargingSpots, setChargingSpots] = useState<
+    {
+      id: string;
+      latitude: number;
+      longitude: number;
+      address: string;
+      chargespot_image1_url: string;
+      email_id: string;
+    }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [selectedSpot, setSelectedSpot] = useState<{
+    address: string;
+    chargespot_image1_url: string;
+    email_id: string;
+  } | null>(null);
+  const [hasData, setHasData] = useState(false); // New state to track if database returned data
+
+  // Fetch the user's current location
+  const fetchUserLocation = async () => {
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setErrorMsg("Permission to access location was denied");
+        Alert.alert(
+          "Permission Denied",
+          "Please enable location access to use this feature."
+        );
+        return;
+      }
+
+      let location = await Location.getCurrentPositionAsync({});
+      setUserLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+    } catch (error) {
+      console.error("Error fetching user location:", error);
+      Alert.alert("Error", "Failed to fetch your location.");
+    }
+  };
+
+  // Fetch all charging spots from the database
+  const fetchChargingSpots = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("Chargers")
+        .select(
+          "charger_id, latitude, longitude, address, chargingspot_image1_url, email_id"
+        );
+
+      if (error) {
+        throw error;
+      }
+
+      // Check if data is null or empty
+      if (!data || data.length === 0) {
+        setHasData(false);
+        setChargingSpots([]);
+      } else {
+        // Convert latitude and longitude to numbers
+        const spots = data.map((spot) => ({
+          id: spot.charger_id,
+          latitude: parseFloat(spot.latitude),
+          longitude: parseFloat(spot.longitude),
+          address: spot.address,
+          chargespot_image1_url: spot.chargingspot_image1_url,
+          email_id: spot.email_id,
+        }));
+
+        setChargingSpots(spots);
+        setHasData(true);
+      }
+    } catch (error) {
+      console.error("Error fetching charging spots:", error);
+      Alert.alert("Error", "Failed to fetch charging spots.");
+      setHasData(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserLocation();
+    fetchChargingSpots();
+  }, []);
+
+  const handleAddChargingSpot = () => {
+    router.push("/addChargingSpot");
+  };
+
+  // Handle marker press
+  const handleMarkerPress = (spot: {
+    address: string;
+    chargespot_image1_url: string;
+    email_id: string;
+  }) => {
+    setSelectedSpot(spot);
+  };
+
+  // Close the image modal
+  const closeImageModal = () => {
+    setSelectedSpot(null);
+  };
+
+  // Render custom charging spot markers
+  const renderChargingMarker = (spot: {
+    id: string;
+    latitude: number;
+    longitude: number;
+    address: string;
+    chargespot_image1_url: string;
+    email_id: string;
+  }) => {
+    return (
+      <Marker
+        key={spot.id}
+        coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
+        title={spot.address}
+        description="Tap to view details"
+        onPress={() => handleMarkerPress(spot)}
+      >
+        <View className="bg-green-500 p-1 rounded-full border border-white w-8 h-8 justify-center items-center">
+          <Text className="text-white font-bold">C</Text>
+        </View>
+      </Marker>
+    );
+  };
+
+  if (errorMsg) {
+    return (
+      <View className="flex-1 bg-gray-900 justify-center items-center">
+        <Text className="text-white text-lg">{errorMsg}</Text>
+      </View>
+    );
+  }
+
+  if (!userLocation || loading) {
+    return (
+      <View className="flex-1 bg-gray-900 justify-center items-center">
+        <Text className="text-white text-lg">Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-gray-900 p-6">
       <Text className="text-5xl font-bold text-yellow-400 font-pbold">
@@ -10,6 +172,79 @@ const ChargingPage = () => {
       <Text className="text-xl mt-2 text-gray-300 font-psemibold">
         Find and share EV charging spots.
       </Text>
+
+      {/* Map View */}
+      <View className="flex-1 mt-8">
+        <MapView
+          style={{ flex: 1 }}
+          initialRegion={{
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }}
+        >
+          {/* User's Current Location Marker */}
+          <Marker
+            coordinate={{
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+            }}
+            pinColor="yellow"
+          />
+
+          {/* Charging Spot Markers (only if hasData is true and chargingSpots is not empty) */}
+          {hasData &&
+            chargingSpots.length > 0 &&
+            chargingSpots.map((spot) => renderChargingMarker(spot))}
+        </MapView>
+      </View>
+
+      {/* Add Charging Spot Button */}
+      <TouchableOpacity
+        onPress={handleAddChargingSpot}
+        className="mt-8 w-full bg-green-500 py-4 rounded-lg"
+      >
+        <Text className="text-center text-xl text-white font-pbold">
+          Add Charging Spot
+        </Text>
+      </TouchableOpacity>
+
+      {/* Image Modal */}
+      <Modal
+        visible={!!selectedSpot}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={closeImageModal}
+      >
+        <View className="flex-1 justify-center items-center bg-black/80">
+          <View className="bg-white p-4 rounded-lg w-11/12">
+            {selectedSpot && (
+              <>
+                <Text className="text-lg font-bold mb-2">
+                  Address: {selectedSpot.address}
+                </Text>
+                <Text className="text-gray-600 mb-4">
+                  Added by: {selectedSpot.email_id}
+                </Text>
+                <Image
+                  source={{ uri: selectedSpot.chargespot_image1_url }}
+                  className="w-full h-64 rounded-lg"
+                  resizeMode="cover"
+                />
+                <TouchableOpacity
+                  onPress={closeImageModal}
+                  className="mt-4 bg-green-500 py-2 rounded-lg"
+                >
+                  <Text className="text-center text-white font-bold">
+                    Close
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };

@@ -18,34 +18,21 @@ import { decode } from "base64-arraybuffer";
 import supabase from "./supabaseClient";
 import { router } from "expo-router";
 
-// Define the type for the parking spot data
+// Define the type for the charging spot data
 type SpotData = {
-  type: string;
-  status: string;
   address: string;
   latitude: string;
   longitude: string;
   comments: string;
-  parkingspot_image1_url: string;
-  parkingspot_image2_url: string;
-  parkingspot_image3_url: string;
+  chargingspot_image1_url: string;
+  chargingspot_image2_url: string;
+  chargingspot_image3_url: string;
   email_id: string;
   provider_account_addr: string;
   provider_evm_addr: string;
 };
 
-// Define type for NFT minting response
-type MintNFTResponse = {
-  success: boolean;
-  nftId?: string;
-  serialNumber?: number;
-  tokenId?: string;
-  error?: string;
-};
-
-export const addParkingSpot = () => {
-  const [type, setType] = useState("Outdoor");
-  const [status, setStatus] = useState("Inactive");
+export const addChargingSpot = () => {
   const [address, setAddress] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -144,7 +131,7 @@ export const addParkingSpot = () => {
         .substring(7)}.jpg`;
 
       const { data, error: uploadError } = await supabase.storage
-        .from("parking_images")
+        .from("charging_images")
         .upload(fileName, arrayBuffer, {
           upsert: true,
           contentType: "image/jpeg",
@@ -156,7 +143,7 @@ export const addParkingSpot = () => {
       }
 
       const { data: publicUrlData } = supabase.storage
-        .from("parking_images")
+        .from("charging_images")
         .getPublicUrl(fileName);
 
       if (publicUrlData?.publicUrl) {
@@ -169,31 +156,6 @@ export const addParkingSpot = () => {
     return uploadedUrls;
   };
 
-  // Mint NFT for the parking spot
-  const mintParkingNFT = async (accountId: string, privateKey: string) => {
-    try {
-      const response = await fetch(
-        "https://hederaprovider-e5c7e6e44385.herokuapp.com/mintParkingNFT",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            hederaAccountId: accountId,
-            privateKey: privateKey,
-          }),
-        }
-      );
-
-      const result: MintNFTResponse = await response.json();
-      return result;
-    } catch (error) {
-      console.error("Error minting NFT:", error);
-      return { success: false, error: "Failed to mint NFT" };
-    }
-  };
-
   // Handle form submission
   const handleSubmit = async () => {
     if (photos.length === 0) {
@@ -201,10 +163,15 @@ export const addParkingSpot = () => {
       return;
     }
 
+    if (!address) {
+      Alert.alert("Error", "Please select an address.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // Get the logged-in user's email and wallet details
+      // Get the logged-in user's email
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -213,79 +180,58 @@ export const addParkingSpot = () => {
         throw new Error("User not logged in");
       }
 
-      // Fetch the user's wallet details from the user table
+      // Fetch hedera_account_id and hedera_evm_addr from user table
       const { data: userData, error: userError } = await supabase
         .from("user")
-        .select("hedera_account_id, hedera_evm_addr, hedera_private_key")
+        .select("hedera_account_id, hedera_evm_addr")
         .eq("email_id", user.email)
         .single();
 
-      if (userError || !userData) {
+      if (userError) {
+        console.error("Error fetching user data:", userError);
         throw new Error("Failed to fetch user wallet details");
+      }
+
+      if (!userData) {
+        throw new Error("User wallet details not found");
       }
 
       const uploadedUrls = await uploadPhotos();
 
       const spotData: SpotData = {
-        type,
-        status,
         address,
         latitude,
         longitude,
         comments,
-        parkingspot_image1_url: uploadedUrls[0] || "",
-        parkingspot_image2_url: uploadedUrls[1] || "",
-        parkingspot_image3_url: uploadedUrls[2] || "",
+        chargingspot_image1_url: uploadedUrls[0] || "",
+        chargingspot_image2_url: uploadedUrls[1] || "",
+        chargingspot_image3_url: uploadedUrls[2] || "",
         email_id: user.email!,
         provider_account_addr: userData.hedera_account_id,
         provider_evm_addr: userData.hedera_evm_addr,
       };
 
-      // Insert the parking spot into the Parking table
+      // Insert the charging spot into the Chargers table
       const { data, error } = await supabase
-        .from("Parking")
+        .from("Chargers")
         .insert([spotData])
         .select();
 
       if (error) {
+        console.error("Supabase insert error:", error);
         throw error;
       }
 
-      // Now mint the NFT
-      const mintResult = await mintParkingNFT(
-        userData.hedera_account_id,
-        userData.hedera_private_key
-      );
-
-      if (!mintResult.success) {
-        // If minting fails, alert the user but don't delete the parking spot
-        Alert.alert(
-          "Warning",
-          "Parking spot added, but NFT minting failed. Please try again later.",
-          [
-            {
-              text: "OK",
-              onPress: () => router.push("/parking"),
-            },
-          ]
-        );
-        return;
-      }
-
-      // Successfully added parking spot and minted NFT
-      Alert.alert(
-        "Success",
-        "Parking spot added and NFT minted successfully!",
-        [
-          {
-            text: "OK",
-            onPress: () => router.push("/parking"),
-          },
-        ]
-      );
+      // Successfully added charging spot
+      Alert.alert("Success", "Charging spot added successfully!", [
+        {
+          text: "OK",
+          onPress: () => router.push("/charging"),
+        },
+      ]);
     } catch (error) {
-      console.error("Error adding parking spot:", error);
-      Alert.alert("Error", "Failed to add parking spot. Please try again.");
+      console.error("Error adding charging spot:", error);
+      Alert.alert("Error", "Failed to add charging spot. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -325,67 +271,25 @@ export const addParkingSpot = () => {
   };
 
   return (
-    <SafeAreaView className="h-full bg-[#161622]">
+    <SafeAreaView className="h-full bg-gray-900">
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <Text className="text-3xl font-bold text-yellow-400 font-pbold mb-6 text-center">
-          Add Parking Spot
+          Add Charging Spot
         </Text>
-
-        {/* Type Selection */}
-        <Text className="text-white font-psemibold mb-2">Type:</Text>
-        <View className="flex-row space-x-4 mb-4">
-          <TouchableOpacity
-            onPress={() => setType("Indoor")}
-            className={`py-2 px-4 rounded-lg ${
-              type === "Indoor" ? "bg-yellow-400" : "bg-gray-700"
-            }`}
-          >
-            <Text className="text-white font-psemibold">Indoor</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setType("Outdoor")}
-            className={`py-2 px-4 rounded-lg ${
-              type === "Outdoor" ? "bg-yellow-400" : "bg-gray-700"
-            }`}
-          >
-            <Text className="text-white font-psemibold">Outdoor</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Status Selection */}
-        <Text className="text-white font-psemibold mb-2">Status:</Text>
-        <View className="flex-row space-x-4 mb-4">
-          <TouchableOpacity
-            onPress={() => setStatus("Active")}
-            className={`py-2 px-4 rounded-lg ${
-              status === "Active" ? "bg-yellow-400" : "bg-gray-700"
-            }`}
-          >
-            <Text className="text-white font-psemibold">Active</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setStatus("Inactive")}
-            className={`py-2 px-4 rounded-lg ${
-              status === "Inactive" ? "bg-yellow-400" : "bg-gray-700"
-            }`}
-          >
-            <Text className="text-white font-psemibold">Inactive</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Address Selection */}
         <Text className="text-white font-psemibold mb-2">Address:</Text>
         <TouchableOpacity
           onPress={handleAddAddress}
-          className="w-full bg-yellow-400 py-4 rounded-lg mb-4"
+          className="w-full bg-green-500 py-4 rounded-lg mb-4"
         >
-          <Text className="text-center text-xl text-gray-900 font-pbold">
+          <Text className="text-center text-xl text-white font-pbold">
             Add Address
           </Text>
         </TouchableOpacity>
 
         {address && (
-          <View className="mb-4">
+          <View className="mb-4 bg-gray-800 p-4 rounded-lg">
             <Text className="text-white font-psemibold">Selected Address:</Text>
             <Text className="text-white">{address}</Text>
             <Text className="text-white">Latitude: {latitude}</Text>
@@ -397,7 +301,7 @@ export const addParkingSpot = () => {
         <Text className="text-white font-psemibold mb-2">Comments:</Text>
         <TextInput
           className="bg-gray-700 text-white rounded-lg p-4 mb-4"
-          placeholder="Any comments about the parking spot"
+          placeholder="Any details about the charging spot (type, power, etc.)"
           placeholderTextColor="#aaa"
           multiline
           numberOfLines={4}
@@ -419,18 +323,18 @@ export const addParkingSpot = () => {
 
         <TouchableOpacity
           onPress={takePhoto}
-          className="w-full bg-yellow-400 py-4 rounded-lg mb-4"
+          className="w-full bg-green-500 py-4 rounded-lg mb-4"
         >
-          <Text className="text-center text-xl text-gray-900 font-pbold">
+          <Text className="text-center text-xl text-white font-pbold">
             Take Photo
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={pickPhoto}
-          className="w-full bg-yellow-400 py-4 rounded-lg mb-4"
+          className="w-full bg-green-500 py-4 rounded-lg mb-4"
         >
-          <Text className="text-center text-xl text-gray-900 font-pbold">
+          <Text className="text-center text-xl text-white font-pbold">
             Pick from Gallery
           </Text>
         </TouchableOpacity>
@@ -439,12 +343,12 @@ export const addParkingSpot = () => {
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={isLoading}
-          className={`w-full bg-yellow-400 py-4 rounded-lg mt-6 ${
+          className={`w-full bg-green-500 py-4 rounded-lg mt-6 ${
             isLoading ? "opacity-50" : ""
           }`}
         >
-          <Text className="text-center text-xl text-gray-900 font-pbold">
-            {isLoading ? "Submitting..." : "Submit Parking Spot"}
+          <Text className="text-center text-xl text-white font-pbold">
+            {isLoading ? "Submitting..." : "Submit Charging Spot"}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -459,6 +363,7 @@ export const addParkingSpot = () => {
             left: 0,
             right: 0,
             bottom: 0,
+            backgroundColor: "#161622",
           }}
         >
           <MapView
@@ -466,7 +371,16 @@ export const addParkingSpot = () => {
             initialRegion={region}
             onPress={handleMapPress}
           >
-            <Marker coordinate={region} />
+            {tempLatLng.latitude && tempLatLng.longitude ? (
+              <Marker
+                coordinate={{
+                  latitude: parseFloat(tempLatLng.latitude),
+                  longitude: parseFloat(tempLatLng.longitude),
+                }}
+              />
+            ) : (
+              <Marker coordinate={region} />
+            )}
           </MapView>
           {tempAddress && (
             <View
@@ -475,22 +389,30 @@ export const addParkingSpot = () => {
                 bottom: 20,
                 left: 20,
                 right: 20,
-                backgroundColor: "white",
-                padding: 10,
-                borderRadius: 5,
+                backgroundColor: "#333",
+                padding: 15,
+                borderRadius: 10,
               }}
             >
-              <Text>{tempAddress}</Text>
+              <Text style={{ color: "white" }}>{tempAddress}</Text>
               <TouchableOpacity
                 onPress={confirmAddress}
                 style={{
-                  backgroundColor: "#FFD700",
+                  backgroundColor: "#22c55e",
                   padding: 10,
                   borderRadius: 5,
                   marginTop: 10,
                 }}
               >
-                <Text style={{ textAlign: "center" }}>Confirm Address</Text>
+                <Text
+                  style={{
+                    textAlign: "center",
+                    color: "white",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Confirm Address
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -500,12 +422,12 @@ export const addParkingSpot = () => {
               position: "absolute",
               top: 20,
               right: 20,
-              backgroundColor: "white",
+              backgroundColor: "#333",
               padding: 10,
               borderRadius: 5,
             }}
           >
-            <Text>Close Map</Text>
+            <Text style={{ color: "white" }}>Close Map</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -515,4 +437,4 @@ export const addParkingSpot = () => {
   );
 };
 
-export default addParkingSpot;
+export default addChargingSpot;
