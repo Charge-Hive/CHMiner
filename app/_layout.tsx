@@ -11,10 +11,22 @@ export default function Layout() {
         name="signup"
         options={{ title: "Sign Up", headerShown: false }}
       />
-      <Stack.Screen name="home" options={{ title: "Home" }} />
-      <Stack.Screen name="parking" options={{ title: "Parking" }} />
-      <Stack.Screen name="charging" options={{ title: "Charging" }} />
-      <Stack.Screen name="wallet" options={{ title: "Wallet" }} />
+      <Stack.Screen
+        name="home"
+        options={{ title: "Home", headerShown: false }}
+      />
+      <Stack.Screen
+        name="parking"
+        options={{ title: "Parking", headerShown: false }}
+      />
+      <Stack.Screen
+        name="charging"
+        options={{ title: "Charging", headerShown: false }}
+      />
+      <Stack.Screen
+        name="wallet"
+        options={{ title: "Wallet", headerShown: false }}
+      />
     </Stack>
   );
 }

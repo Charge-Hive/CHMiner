@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import supabase from "./supabaseClient"; // Import Supabase client
 import { FontAwesome } from "@expo/vector-icons"; // For logout icon
@@ -39,11 +39,12 @@ const HomePage = () => {
         </Text>
       </View>
 
-      {/* Buttons */}
-      <View className="flex-1 justify-center space-y-6">
+      {/* Buttons with definite spacing using style instead of className */}
+      <View style={styles.buttonContainer}>
         <TouchableOpacity
           onPress={() => router.push("/parking")}
-          className="w-full bg-blue-500 py-4 rounded-lg"
+          style={styles.button}
+          className="bg-blue-500 rounded-lg"
         >
           <Text className="text-center text-xl text-white font-pbold">
             Parking
@@ -52,7 +53,8 @@ const HomePage = () => {
 
         <TouchableOpacity
           onPress={() => router.push("/charging")}
-          className="w-full bg-green-500 py-4 rounded-lg"
+          style={styles.button}
+          className="bg-green-500 rounded-lg"
         >
           <Text className="text-center text-xl text-white font-pbold">
             Charging
@@ -61,7 +63,8 @@ const HomePage = () => {
 
         <TouchableOpacity
           onPress={() => router.push("/wallet")}
-          className="w-full bg-purple-500 py-4 rounded-lg"
+          style={styles.button}
+          className="bg-purple-500 rounded-lg"
         >
           <Text className="text-center text-xl text-white font-pbold">
             Wallet
@@ -71,5 +74,19 @@ const HomePage = () => {
     </View>
   );
 };
+
+// Using StyleSheet for more reliable spacing
+const styles = StyleSheet.create({
+  buttonContainer: {
+    flex: 1,
+    justifyContent: "center",
+    width: "100%",
+  },
+  button: {
+    width: "100%",
+    paddingVertical: 16,
+    marginBottom: 32, // This adds 32 pixels of space between buttons
+  },
+});
 
 export default HomePage;
